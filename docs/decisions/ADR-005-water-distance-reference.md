@@ -10,3 +10,5 @@ The notebook computes `water_distance` against all waterfront houses in the full
 
 ## Consequences
 Test `test_water_distance_uses_reference_from_fit`. Waterfront houses get distance 0 to themselves when they are in the reference set, as in the notebook. The write-up names the full-data fit as a limitation of the original notebook.
+
+Amendment (2026-10-27, Phase 2): `fit` raises a clear `ValueError` when its data has no waterfront houses (an empty reference has no minimum), and `transform` before `fit` raises sklearn's `NotFittedError`. Tests `test_water_distance_fit_without_waterfront_houses_raises`, `test_water_distance_transform_before_fit_raises_not_fitted`.
