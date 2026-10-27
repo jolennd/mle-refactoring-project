@@ -194,3 +194,7 @@ __pycache__/
 .ruff_cache/
 .ipynb_checkpoints/
 .DS_Store
+
+# local SQLite files
+*.sqlite
+*.sqlite3
