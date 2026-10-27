@@ -29,3 +29,20 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     result = result.drop(columns=["yr_built", "yr_renovated"])
     logger.info("Dropped %d rows with implausible bedrooms", len(df) - len(result))
     return result
+
+
+def write_clean(
+    raw_path: str | Path = config.RAW_DATA_PATH,
+    out_path: str | Path = config.CLEAN_PATH,
+) -> Path:
+    """Load, clean and write the clean table as parquet, keeping the index."""
+    df = clean(load_raw(raw_path))
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(out_path)
+    return Path(out_path)
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    written = write_clean()
+    logger.info("Wrote %s (%d rows)", written, len(pd.read_parquet(written)))
