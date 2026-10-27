@@ -10,3 +10,6 @@ Phases 1 to 3 reproduce the notebook exactly. All constants go into `config.py` 
 
 ## Consequences
 `tests/data_gates/test_parity.py` compares the pipeline with `tests/fixtures/legacy_notebook.py` on the real CSV. Known weaknesses become documented limitations in the write-up, not silent changes.
+
+## Amendment (2026-10-27, Phase 1 review)
+`last_known_change` uses `yr_renovated > 0` (else `yr_built`), where the notebook uses "`yr_renovated` is 0 or NaN" (else `yr_renovated`). The two differ only for a negative `yr_renovated`, which the notebook would keep and we replace with `yr_built`. The real CSV has no negative values, so the output is identical (checked by the reviewer on all 21,596 rows). Accepted as a deliberate, harmless tightening rather than copying the edge case.
