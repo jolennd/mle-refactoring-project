@@ -96,9 +96,9 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     WaterDistance is fitted on `df` itself, the full clean table, as the notebook
     does (cells 67-70; ADR-005).
     """
-    with_center = CenterDistance().fit(df).transform(df)
-    with_water = WaterDistance().fit(with_center).transform(with_center)
-    selected = SelectColumns(config.FEATURES).fit(with_water).transform(with_water)
+    with_center = CenterDistance().fit_transform(df)
+    with_water = WaterDistance().fit_transform(with_center)
+    selected = SelectColumns(config.FEATURES).fit_transform(with_water)
     return pd.concat([with_water[[config.ID_COL, config.TARGET]], selected], axis=1)
 
 
