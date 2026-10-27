@@ -1,0 +1,13 @@
+{
+  "cv_r2": 0.8266260084160674,
+  "best_params": {
+    "model__regressor__alpha": 0.01,
+    "model__regressor__l1_ratio": 0.2
+  },
+  "test_r2": 0.8442693803832908,
+  "source_notebook": "King-County.ipynb",
+  "source_notebook_sha256": "d23cad656a31d1d148dcc108950a23e0d87fa1468d6a88d348c522cb226f3ade",
+  "sklearn_version": "1.9.1",
+  "created": "2026-10-27",
+  "procedure": "nbconvert --execute of an unmodified copy of King-County.ipynb plus this appended cell"
+}
