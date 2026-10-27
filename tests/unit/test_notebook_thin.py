@@ -15,13 +15,6 @@ import pytest
 
 from kc_housing import config
 
-# Proposed config constant (config.py is human-owned): REFACTORED_NOTEBOOK.
-REFACTORED_NOTEBOOK = getattr(
-    config,
-    "REFACTORED_NOTEBOOK",
-    config.ROOT / "notebooks" / "king_county_refactored.ipynb",
-)
-
 # King-County.ipynb cell indices (all cells, 0-based, as nbformat counts them).
 CLEANING_CELLS = range(7, 81)  # load (7), cleaning (26-43), features (56-70), X (78-80)
 MODELING_START_CELL = (
@@ -110,7 +103,7 @@ def _imports_pipeline(source: str) -> bool:
 def test_refactored_notebook_imports_pipeline():
     """Convention 2: some code cell imports the Phase 3 entry point from
     kc_housing.pipeline (build_feature_pipeline or run), not cleaning/features alone."""
-    cells = _code_cells(REFACTORED_NOTEBOOK)
+    cells = _code_cells(config.REFACTORED_NOTEBOOK)
 
     importing = [index for index, source in cells if _imports_pipeline(source)]
 
@@ -133,7 +126,9 @@ def test_refactored_notebook_has_no_cleaning_code(marker):
         pattern.search(s) for i, s in reference if i >= MODELING_START_CELL
     ), f"marker {marker!r} would flag the reference modeling cells"
 
-    offending = [i for i, s in _code_cells(REFACTORED_NOTEBOOK) if pattern.search(s)]
+    offending = [
+        i for i, s in _code_cells(config.REFACTORED_NOTEBOOK) if pattern.search(s)
+    ]
 
     assert not offending, f"cleaning marker {marker!r} found in code cells {offending}"
 
@@ -146,7 +141,7 @@ def test_refactored_notebook_keeps_modeling_cells_unchanged():
         for i, s in _code_cells(config.REFERENCE_NOTEBOOK)
         if i >= MODELING_START_CELL
     ]
-    refactored = [s.strip() for _, s in _code_cells(REFACTORED_NOTEBOOK)]
+    refactored = [s.strip() for _, s in _code_cells(config.REFACTORED_NOTEBOOK)]
 
     remaining = iter(refactored)
     missing = [cell for cell in modeling if cell not in remaining]
