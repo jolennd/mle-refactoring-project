@@ -82,12 +82,17 @@ class SelectColumns(BaseEstimator, TransformerMixin):
         self.columns = columns
 
     def fit(self, X: pd.DataFrame, y=None) -> "SelectColumns":
-        """Stateless: nothing to learn."""
+        """Store the columns to keep; raise KeyError if any is missing from `X`."""
+        missing = [col for col in self.columns if col not in X.columns]
+        if missing:
+            raise KeyError(f"SelectColumns.fit: columns missing from X: {missing}")
+        self.columns_ = list(self.columns)
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
-        """Return a new DataFrame with only `columns`, in order; the index is kept."""
-        return X[list(self.columns)].copy()
+        """Return a new DataFrame with only `columns_`, in order; the index is kept."""
+        check_is_fitted(self)
+        return X[self.columns_].copy()
 
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
