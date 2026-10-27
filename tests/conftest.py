@@ -3,6 +3,7 @@ import pandas as pd
 import pytest
 
 from kc_housing import config
+from kc_housing.cleaning import load_raw
 
 
 @pytest.fixture
@@ -49,10 +50,10 @@ def raw_houses() -> pd.DataFrame:
 
 @pytest.fixture
 def raw_csv() -> pd.DataFrame:
-    """The committed raw CSV for data-gate tests; skip with a reason if missing."""
+    """The committed raw CSV, read through the real load path; skip with a reason if missing."""
     if not config.RAW_DATA_PATH.exists():
         pytest.skip(f"{config.RAW_DATA_PATH} not found: restore the committed raw CSV")
-    return pd.read_csv(config.RAW_DATA_PATH)
+    return load_raw(config.RAW_DATA_PATH)
 
 
 @pytest.fixture
