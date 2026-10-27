@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.utils.validation import check_is_fitted
 
 from kc_housing import config
 
@@ -46,12 +47,18 @@ class WaterDistance(BaseEstimator, TransformerMixin):
     def fit(self, X: pd.DataFrame, y=None) -> "WaterDistance":
         """Store the coordinates of the waterfront houses seen in fit."""
         water = X[X["waterfront"] == 1]
+        if water.empty:
+            raise ValueError(
+                "WaterDistance.fit needs at least one waterfront house "
+                "(waterfront == 1); got none."
+            )
         self.reference_long_ = water["long"].to_numpy()
         self.reference_lat_ = water["lat"].to_numpy()
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """Return a copy of `X` with `water_distance`; the input is not modified."""
+        check_is_fitted(self)
         result = X.copy()
         long = result["long"].to_numpy()[:, np.newaxis]
         lat = result["lat"].to_numpy()[:, np.newaxis]
@@ -61,3 +68,18 @@ class WaterDistance(BaseEstimator, TransformerMixin):
         distances = _km(long - ref_long, lat - ref_lat, ref_lat)
         result["water_distance"] = distances.min(axis=1)
         return result
+
+
+class SelectColumns(BaseEstimator, TransformerMixin):
+    """Keep `columns` in the given order (notebook cells 78-80 and 101)."""
+
+    def __init__(self, columns):
+        self.columns = columns
+
+    def fit(self, X: pd.DataFrame, y=None) -> "SelectColumns":
+        """Stateless: nothing to learn."""
+        return self
+
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """Return a new DataFrame with only `columns`, in order; the index is kept."""
+        return X[list(self.columns)].copy()
