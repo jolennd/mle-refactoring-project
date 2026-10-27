@@ -50,7 +50,7 @@ def raw_houses() -> pd.DataFrame:
 
 @pytest.fixture
 def raw_csv() -> pd.DataFrame:
-    """The committed raw CSV, read through the real load path; skip with a reason if missing."""
+    """The committed raw CSV via the real load path; skip with a reason if missing."""
     if not config.RAW_DATA_PATH.exists():
         pytest.skip(f"{config.RAW_DATA_PATH} not found: restore the committed raw CSV")
     return load_raw(config.RAW_DATA_PATH)
