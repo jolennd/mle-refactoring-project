@@ -1,9 +1,13 @@
+import pickle
+
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.base import clone
+from sklearn.exceptions import NotFittedError
 
 from kc_housing import config
-from kc_housing.features import CenterDistance, WaterDistance
+from kc_housing.features import CenterDistance, SelectColumns, WaterDistance
 
 
 @pytest.fixture
@@ -184,3 +188,105 @@ def test_water_distance_uses_reference_from_fit(waterfront_houses):
         rtol=config.PARITY_RTOL,
         atol=config.PARITY_ATOL,
     )
+
+
+@pytest.fixture
+def feature_frame() -> pd.DataFrame:
+    """All config.FEATURES columns in shuffled order plus extras, non-default index.
+
+    Extras are the id, the label, a leakage column, the raw date and an
+    intermediate of cell 60 (delta_lat), none of which may reach the feature set.
+    """
+    rng = np.random.default_rng(0)
+    n = 4
+    columns = list(rng.permutation(config.FEATURES))
+    frame = pd.DataFrame(
+        {col: rng.uniform(0, 100, n) for col in columns},
+        index=[810, 23, 457, 96],
+    )
+    frame.insert(3, "price", rng.uniform(200_000, 1_500_000, n))
+    frame.insert(0, "id", [11, 12, 13, 14])
+    frame["sqft_price"] = frame["price"] / 1000
+    frame.insert(7, "date", ["10/13/2014"] * n)
+    frame["delta_lat"] = rng.uniform(0, 1, n)
+    assert list(frame.columns[: len(config.FEATURES)]) != config.FEATURES
+    return frame
+
+
+def test_select_columns_returns_config_features_in_order(feature_frame):
+    """Mirrors notebook cells 78-80/101: the model sees exactly config.FEATURES.
+
+    ADR-004: returns a DataFrame in config.FEATURES order, keeps the index, never
+    mutates the input; extras (id, price, sqft_price, date, delta_lat) are dropped.
+    """
+    original = feature_frame.copy()
+
+    result = SelectColumns(columns=config.FEATURES).fit_transform(feature_frame)
+
+    pd.testing.assert_frame_equal(feature_frame, original)
+    assert isinstance(result, pd.DataFrame)
+    assert list(result.columns) == config.FEATURES
+    pd.testing.assert_index_equal(result.index, original.index)
+    pd.testing.assert_frame_equal(result, original[config.FEATURES])
+
+
+def test_feature_set_excludes_leakage_columns(feature_frame):
+    """R6: no leakage column (price, sqft_price) is a feature.
+
+    Neither in config.FEATURES nor in SelectColumns output, even when the input
+    carries them.
+    """
+    assert set(config.LEAKAGE_COLUMNS).issubset(feature_frame.columns)
+    assert not set(config.LEAKAGE_COLUMNS) & set(config.FEATURES)
+
+    result = SelectColumns(config.FEATURES).fit_transform(feature_frame)
+
+    assert not set(config.LEAKAGE_COLUMNS) & set(result.columns)
+
+
+@pytest.mark.parametrize(
+    ("transformer", "data_fixture"),
+    [
+        (CenterDistance(), "waterfront_houses"),
+        (WaterDistance(), "waterfront_houses"),
+        (SelectColumns(config.FEATURES), "feature_frame"),
+    ],
+    ids=["center_distance", "water_distance", "select_columns"],
+)
+def test_transformers_are_clonable_and_picklable(transformer, data_fixture, request):
+    """ADR-004 and spec guarantees: usable in sklearn pipelines and GridSearchCV.
+
+    clone keeps get_params (SelectColumns keeps config.FEATURES); a fitted
+    transformer (incl. WaterDistance with its fitted reference, ADR-005) survives
+    pickle and gives an identical transform.
+    """
+    data = request.getfixturevalue(data_fixture)
+
+    cloned = clone(transformer)
+
+    assert type(cloned) is type(transformer)
+    assert cloned.get_params() == transformer.get_params()
+    if isinstance(transformer, SelectColumns):
+        assert list(cloned.get_params()["columns"]) == config.FEATURES
+
+    fitted = cloned.fit(data)
+    restored = pickle.loads(pickle.dumps(fitted))
+
+    pd.testing.assert_frame_equal(restored.transform(data), fitted.transform(data))
+
+
+def test_water_distance_transform_before_fit_raises_not_fitted(waterfront_houses):
+    """ADR-004/005: transform needs the reference from fit; sklearn's NotFittedError."""
+    with pytest.raises(NotFittedError):
+        WaterDistance().transform(waterfront_houses)
+
+
+def test_water_distance_fit_without_waterfront_houses_raises(waterfront_houses):
+    """ADR-005: an empty waterfront reference makes water_distance undefined.
+
+    fit must fail loudly, naming waterfront, instead of failing later in transform.
+    """
+    no_water = waterfront_houses.assign(waterfront=0.0)
+
+    with pytest.raises(ValueError, match="waterfront"):
+        WaterDistance().fit(no_water)
