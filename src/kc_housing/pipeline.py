@@ -8,7 +8,12 @@ from sklearn.pipeline import Pipeline
 
 from kc_housing import config
 from kc_housing.cleaning import clean, load_raw
-from kc_housing.features import CenterDistance, SelectColumns, WaterDistance
+from kc_housing.features import (
+    CenterDistance,
+    SelectColumns,
+    WaterDistance,
+    with_id_and_target,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +39,7 @@ def run(
     """
     df = clean(load_raw(raw_path))
     features = build_feature_pipeline().fit_transform(df)
-    out = pd.concat([df[[config.ID_COL, config.TARGET]], features], axis=1)
+    out = with_id_and_target(df, features)
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     out.to_parquet(out_path)
     return Path(out_path)
