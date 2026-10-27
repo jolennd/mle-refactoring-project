@@ -1,0 +1,12 @@
+# ADR-006: Stretch modeling target = the notebook's own R^2, locked before refactoring
+
+Status: Accepted (2026-10-27)
+
+## Context
+The brief sets no metric or threshold. The notebook reports test R^2 (about 0.83 in its conclusion), with `train_test_split(test_size=0.3, random_state=42)` and `GridSearchCV(cv=5, scoring="r2")` over ElasticNet. A number from a markdown cell is not a reliable target, and repeat sales of one `id` can fall into both train and test (mild optimism, inherited from the notebook).
+
+## Decision
+Before writing `models.py`, run the frozen notebook procedure once, record its CV R^2, best parameters and test R^2 in `reports/results/baseline_lock.json`, and commit that file alone. The refactored training must reproduce the locked test R^2 within `config.R2_PARITY_ATOL = 0.001` (the notebook prints 3 decimals). Split, folds, grid and seed come from `config.py`. The split stays random and per row, as in the notebook.
+
+## Consequences
+`test_lock_precedes_test_eval` checks the commit order; `test_test_r2_matches_locked_notebook_r2` is the data gate. A group split by `id` is listed as a possible improvement in the write-up, not done.

@@ -170,4 +170,27 @@ cython_debug/
 Thumbs.db
 
 # Model files
-model/
+/model/
+
+# private and tool folders
+private/
+.claude/
+
+# data and artifacts
+data/*
+!data/.gitkeep
+!data/King_County_House_prices_dataset.csv
+data/raw/*
+data/processed/*
+*.db
+models/*
+!models/.gitkeep
+
+# environment and caches
+.venv/
+.env
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.DS_Store
