@@ -4,7 +4,7 @@ Every deliverable and success criterion from docs/00_project_brief.md, mapped to
 
 | ID | Requirement / success criterion (from the brief) | Artifact | Test(s) | Status |
 |---|---|---|---|---|
-| R1 | Cleaning code lives in Python files, as functions (main task 1) | src/kc_housing/cleaning.py | tests/unit/test_cleaning.py::test_drops_rows_with_implausible_bedrooms, ::test_sqft_basement_is_living_minus_above, ::test_view_and_waterfront_missing_become_zero, ::test_last_known_change_is_renovation_else_build_year, ::test_drops_yr_built_and_yr_renovated | todo |
+| R1 | Cleaning code lives in Python files, as functions (main task 1) | src/kc_housing/cleaning.py | tests/unit/test_cleaning.py::test_drops_rows_with_implausible_bedrooms, ::test_sqft_basement_is_living_minus_above, ::test_view_and_waterfront_missing_become_zero, ::test_last_known_change_is_renovation_else_build_year, ::test_drops_yr_built_and_yr_renovated; tests/integration/test_contract_clean.py::test_load_raw_reads_csv_unchanged | todo |
 | R2 | Cleaning drops only the rows its rule names, and reports the count (ADR-003) | cleaning.py | tests/unit/test_cleaning.py::test_clean_drops_only_rule_rows; tests/data_gates/test_clean_real.py::test_real_data_loses_exactly_one_row | todo |
 | R3 | Cleaning does not change its input and keeps the original index | cleaning.py | tests/unit/test_cleaning.py::test_clean_does_not_mutate_input, ::test_clean_keeps_index | todo |
 | R4 | Clean-table handoff: no NaN in model columns, numeric dtypes, sqft_basement numeric | data/processed/houses_clean.parquet | tests/integration/test_contract_clean.py::test_clean_table_schema | todo |
