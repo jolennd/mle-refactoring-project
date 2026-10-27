@@ -10,3 +10,5 @@ Before writing `models.py`, run the frozen notebook procedure once, record its C
 
 ## Consequences
 `test_lock_precedes_test_eval` checks the commit order; `test_test_r2_matches_locked_notebook_r2` is the data gate. A group split by `id` is listed as a possible improvement in the write-up, not done.
+
+Amendment (2026-10-27, Phase 3 gate): the Phase 3 hand run of `notebooks/king_county_refactored.ipynb` (nbconvert, exit 0) printed Test R^2 0.844 before `baseline_lock.json` exists. The modeling cells were verbatim and nothing was tuned, so no decision used it. It is not the lock: the Phase 4 lock still comes from running the frozen `King-County.ipynb`, and the Phase 4 notebook re-run happens after the lock commit. 0.844 vs the conclusion's "roughly 83%" suggests that text is rounded or stale.
