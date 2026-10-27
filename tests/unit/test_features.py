@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 
 from kc_housing import config
-from kc_housing.features import CenterDistance
+from kc_housing.features import CenterDistance, WaterDistance
 
 
 @pytest.fixture
@@ -45,9 +45,7 @@ def test_center_distance_matches_notebook_formula(located_houses):
     """Mirrors notebook cell 60: km from the center, cos(CENTER_COS_LAT) correction."""
     result = CenterDistance().fit_transform(located_houses)
 
-    expected = _notebook_center_distance(
-        located_houses["lat"], located_houses["long"]
-    )
+    expected = _notebook_center_distance(located_houses["lat"], located_houses["long"])
     np.testing.assert_allclose(
         result["center_distance"].to_numpy(),
         expected.to_numpy(),
@@ -57,7 +55,10 @@ def test_center_distance_matches_notebook_formula(located_houses):
 
 
 def test_center_distance_does_not_mutate_input_and_keeps_index(located_houses):
-    """ADR-004: returns a DataFrame, keeps the index, never mutates input, fit returns self."""
+    """ADR-004: returns a DataFrame, keeps the index, never mutates input.
+
+    Also: fit returns self.
+    """
     original = located_houses.copy()
     transformer = CenterDistance()
 
@@ -70,3 +71,116 @@ def test_center_distance_does_not_mutate_input_and_keeps_index(located_houses):
     assert "center_distance" in result.columns
     assert "delta_lat" not in result.columns
     assert "delta_long" not in result.columns
+
+
+@pytest.fixture
+def waterfront_houses() -> pd.DataFrame:
+    """Six synthetic houses, non-default index; 401, 117 and 865 are waterfront.
+
+    waterfront is float, as after fillna(0) in cleaning.
+    """
+    return pd.DataFrame(
+        {
+            "lat": [47.6100, 47.5112, 47.7210, 47.4530, 47.6800, 47.3900],
+            "long": [-122.4100, -122.2570, -122.3190, -122.1500, -122.0600, -122.3300],
+            "waterfront": [1.0, 0.0, 1.0, 0.0, 0.0, 1.0],
+        },
+        index=[401, 233, 117, 958, 612, 865],
+    )
+
+
+def _notebook_dist(long, lat, ref_long, ref_lat):
+    """Hand copy of notebook cell 67 with EARTH_RADIUS_KM from config.
+
+    The longitude correction uses cos(ref_lat), the reference house's latitude.
+    """
+    delta_long = long - ref_long
+    delta_lat = lat - ref_lat
+    delta_long_corr = delta_long * np.cos(np.radians(ref_lat))
+    return (
+        ((delta_long_corr) ** 2 + (delta_lat) ** 2) ** (1 / 2)
+        * 2
+        * np.pi
+        * config.EARTH_RADIUS_KM
+        / 360
+    )
+
+
+def _notebook_water_distance(
+    houses: pd.DataFrame, reference: pd.DataFrame
+) -> np.ndarray:
+    """Hand copy of notebook cells 68-69: min km to any waterfront reference house."""
+    water_list = reference.query("waterfront == 1")
+    return np.array(
+        [
+            min(
+                _notebook_dist(long, lat, ref_long, ref_lat)
+                for ref_long, ref_lat in zip(
+                    water_list["long"], water_list["lat"], strict=True
+                )
+            )
+            for long, lat in zip(houses["long"], houses["lat"], strict=True)
+        ]
+    )
+
+
+def test_water_distance_is_zero_for_waterfront_houses(waterfront_houses):
+    """Mirrors notebook cells 68-69 (ADR-005): waterfront houses are 0 km from water.
+
+    They are in the fitted reference set, so their water_distance is 0 km.
+    """
+    result = WaterDistance().fit_transform(waterfront_houses)
+
+    assert (result.loc[[401, 117, 865], "water_distance"] == 0).all()
+    assert (result.loc[[233, 958, 612], "water_distance"] > 0).all()
+
+
+def test_water_distance_is_min_over_reference_houses(waterfront_houses):
+    """Mirrors notebook cells 67-69: min over waterfront houses of dist().
+
+    The longitude correction uses cos(ref_lat), as in the notebook.
+    """
+    result = WaterDistance().fit_transform(waterfront_houses)
+
+    expected = _notebook_water_distance(waterfront_houses, waterfront_houses)
+    np.testing.assert_allclose(
+        result.loc[waterfront_houses.index, "water_distance"].to_numpy(),
+        expected,
+        rtol=config.PARITY_RTOL,
+        atol=config.PARITY_ATOL,
+    )
+
+
+def test_water_distance_uses_reference_from_fit(waterfront_houses):
+    """ADR-005: transform measures against the waterfront houses seen in fit only.
+
+    Also ADR-004: fit returns self, output is a DataFrame with the input's index,
+    input not mutated.
+    """
+    new_houses = pd.DataFrame(
+        {
+            # 72 is flagged waterfront here but was not in the fit data.
+            "lat": [47.5600, 47.6400, 47.4000],
+            "long": [-122.2000, -122.3800, -122.1000],
+            "waterfront": [1.0, 0.0, 0.0],
+        },
+        index=[72, 15, 340],
+    )
+    original = new_houses.copy()
+    transformer = WaterDistance()
+
+    assert transformer.fit(waterfront_houses) is transformer
+    result = transformer.transform(new_houses)
+
+    pd.testing.assert_frame_equal(new_houses, original)
+    assert isinstance(result, pd.DataFrame)
+    pd.testing.assert_index_equal(result.index, original.index)
+    # The new waterfront house is not in the fitted reference, so it is not 0 km away.
+    assert result.loc[72, "water_distance"] > 0
+    expected = _notebook_water_distance(new_houses, waterfront_houses)
+    np.testing.assert_allclose(
+        result["water_distance"].to_numpy(),
+        expected,
+        rtol=config.PARITY_RTOL,
+        atol=config.PARITY_ATOL,
+    )
