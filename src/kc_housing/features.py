@@ -1,4 +1,4 @@
-"""Feature engineering as sklearn transformers (cells 60, 67-70; ADR-004, ADR-005)."""
+"""Feature engineering transformers (cells 60, 67-70, 78-80, 101; ADR-004, ADR-005)."""
 
 import numpy as np
 import pandas as pd
