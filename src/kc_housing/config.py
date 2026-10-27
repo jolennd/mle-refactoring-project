@@ -13,6 +13,7 @@ PROCESSED_DIR = DATA_DIR / "processed"
 CLEAN_PATH = PROCESSED_DIR / "houses_clean.parquet"
 FEATURES_PATH = PROCESSED_DIR / "features.parquet"
 REFERENCE_NOTEBOOK = ROOT / "King-County.ipynb"  # frozen, ADR-001
+REFACTORED_NOTEBOOK = ROOT / "notebooks" / "king_county_refactored.ipynb"  # ADR-001
 MODELS_DIR = ROOT / "models"
 MODEL_PATH = MODELS_DIR / "elastic_net.skops"  # ADR-007
 RESULTS_DIR = ROOT / "reports" / "results"

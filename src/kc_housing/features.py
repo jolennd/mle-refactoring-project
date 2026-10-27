@@ -82,12 +82,22 @@ class SelectColumns(BaseEstimator, TransformerMixin):
         self.columns = columns
 
     def fit(self, X: pd.DataFrame, y=None) -> "SelectColumns":
-        """Stateless: nothing to learn."""
+        """Store the columns to keep; raise KeyError if any is missing from `X`."""
+        missing = [col for col in self.columns if col not in X.columns]
+        if missing:
+            raise KeyError(f"SelectColumns.fit: columns missing from X: {missing}")
+        self.columns_ = list(self.columns)
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
-        """Return a new DataFrame with only `columns`, in order; the index is kept."""
-        return X[list(self.columns)].copy()
+        """Return a new DataFrame with only `columns_`, in order; the index is kept."""
+        check_is_fitted(self)
+        return X[self.columns_].copy()
+
+
+def with_id_and_target(df: pd.DataFrame, features: pd.DataFrame) -> pd.DataFrame:
+    """Return `df`'s id and price columns, then `features`, aligned on the index."""
+    return pd.concat([df[[config.ID_COL, config.TARGET]], features], axis=1)
 
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -99,7 +109,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     with_center = CenterDistance().fit_transform(df)
     with_water = WaterDistance().fit_transform(with_center)
     selected = SelectColumns(config.FEATURES).fit_transform(with_water)
-    return pd.concat([with_water[[config.ID_COL, config.TARGET]], selected], axis=1)
+    return with_id_and_target(df, selected)
 
 
 def write_features(

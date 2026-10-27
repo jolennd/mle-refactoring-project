@@ -290,3 +290,20 @@ def test_water_distance_fit_without_waterfront_houses_raises(waterfront_houses):
 
     with pytest.raises(ValueError, match="waterfront"):
         WaterDistance().fit(no_water)
+
+
+def test_select_columns_fit_missing_column_raises_key_error(feature_frame):
+    """ADR-004: fit fails loudly with a KeyError naming the missing column.
+
+    A missing feature must not slip through to a later, less clear error.
+    """
+    columns = [*config.FEATURES, "not_a_column"]
+
+    with pytest.raises(KeyError, match="not_a_column"):
+        SelectColumns(columns).fit(feature_frame)
+
+
+def test_select_columns_transform_before_fit_raises_not_fitted(feature_frame):
+    """ADR-004: transform needs the columns stored by fit; sklearn's NotFittedError."""
+    with pytest.raises(NotFittedError):
+        SelectColumns(config.FEATURES).transform(feature_frame)
