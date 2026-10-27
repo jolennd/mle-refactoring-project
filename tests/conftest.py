@@ -62,3 +62,23 @@ def processed_features() -> pd.DataFrame:
     if not config.FEATURES_PATH.exists():
         pytest.skip(f"{config.FEATURES_PATH} not found: run `make features` first")
     return pd.read_parquet(config.FEATURES_PATH)
+
+
+@pytest.fixture
+def feature_table() -> pd.DataFrame:
+    """Synthetic Phase 3 feature table (id, price, config.FEATURES) for split tests.
+
+    20 rows, fixed seed, non-default index, one repeat sale (id 1000 twice) and an extra
+    leakage column `sqft_price` that must never reach X.
+    """
+    rng = np.random.default_rng(4)
+    n = 20
+    frame = pd.DataFrame(
+        {col: rng.uniform(0, 100, n) for col in config.FEATURES},
+        index=range(500, 500 + n),
+    )
+    frame.insert(0, config.TARGET, rng.integers(200_000, 1_500_000, n).astype(float))
+    ids = [*range(1000, 1000 + n - 1), 1000]  # last row resells house 1000
+    frame.insert(0, config.ID_COL, ids)
+    frame["sqft_price"] = frame[config.TARGET] / frame["sqft_living"]
+    return frame
