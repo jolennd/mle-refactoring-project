@@ -7,6 +7,23 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from kc_housing import config
 
 
+def _km(delta_long, delta_lat, cos_lat_deg):
+    """Equirectangular distance in km (notebook cells 60 and 67).
+
+    ((delta_long * cos(radians(cos_lat_deg)))**2 + delta_lat**2) ** (1/2)
+    * 2 * pi * EARTH_RADIUS_KM / 360, in the notebook's operation order (ADR-002).
+    On full arrays numpy may round the last bit differently from the notebook's
+    scalar loop, so water_distance matches to ~1e-14, well inside PARITY_ATOL.
+    """
+    return (
+        ((delta_long * np.cos(np.radians(cos_lat_deg))) ** 2 + delta_lat**2) ** (1 / 2)
+        * 2
+        * np.pi
+        * config.EARTH_RADIUS_KM
+        / 360
+    )
+
+
 class CenterDistance(BaseEstimator, TransformerMixin):
     """Add `center_distance`, km from the wealth center (notebook cell 60)."""
 
@@ -19,18 +36,7 @@ class CenterDistance(BaseEstimator, TransformerMixin):
         result = X.copy()
         delta_lat = np.absolute(config.CENTER_LAT - result["lat"])
         delta_long = np.absolute(config.CENTER_LONG - result["long"])
-        # Same operation order as the notebook so floats match (ADR-002).
-        result["center_distance"] = (
-            (
-                (delta_long * np.cos(np.radians(config.CENTER_COS_LAT))) ** 2
-                + delta_lat**2
-            )
-            ** (1 / 2)
-            * 2
-            * np.pi
-            * config.EARTH_RADIUS_KM
-            / 360
-        )
+        result["center_distance"] = _km(delta_long, delta_lat, config.CENTER_COS_LAT)
         return result
 
 
@@ -52,16 +58,6 @@ class WaterDistance(BaseEstimator, TransformerMixin):
         ref_long = self.reference_long_[np.newaxis, :]
         ref_lat = self.reference_lat_[np.newaxis, :]
         # (n, m) km matrix; n*m floats (21,596 x ~146 ~ 3.2M ~ 25 MB), no chunking.
-        # Same operation order as the notebook's dist() so floats match (ADR-002).
-        delta_long = long - ref_long
-        delta_lat = lat - ref_lat
-        delta_long_corr = delta_long * np.cos(np.radians(ref_lat))
-        distances = (
-            ((delta_long_corr) ** 2 + (delta_lat) ** 2) ** (1 / 2)
-            * 2
-            * np.pi
-            * config.EARTH_RADIUS_KM
-            / 360
-        )
+        distances = _km(long - ref_long, lat - ref_lat, ref_lat)
         result["water_distance"] = distances.min(axis=1)
         return result
