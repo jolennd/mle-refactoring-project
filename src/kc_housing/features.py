@@ -1,11 +1,16 @@
 """Feature engineering transformers (cells 60, 67-70, 78-80, 101; ADR-004, ADR-005)."""
 
+import logging
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_is_fitted
 
 from kc_housing import config
+
+logger = logging.getLogger(__name__)
 
 
 def _km(delta_long, delta_lat, cos_lat_deg):
@@ -83,3 +88,32 @@ class SelectColumns(BaseEstimator, TransformerMixin):
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         """Return a new DataFrame with only `columns`, in order; the index is kept."""
         return X[list(self.columns)].copy()
+
+
+def build_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Return id, price, then config.FEATURES; the index is kept, `df` not modified.
+
+    WaterDistance is fitted on `df` itself, the full clean table, as the notebook
+    does (cells 67-70; ADR-005).
+    """
+    with_center = CenterDistance().fit(df).transform(df)
+    with_water = WaterDistance().fit(with_center).transform(with_center)
+    selected = SelectColumns(config.FEATURES).fit(with_water).transform(with_water)
+    return pd.concat([with_water[[config.ID_COL, config.TARGET]], selected], axis=1)
+
+
+def write_features(
+    clean_path: str | Path = config.CLEAN_PATH,
+    out_path: str | Path = config.FEATURES_PATH,
+) -> Path:
+    """Read the clean table, build the features and write them as parquet."""
+    df = build_features(pd.read_parquet(clean_path))
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(out_path)
+    return Path(out_path)
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    written = write_features()
+    logger.info("Wrote %s (%d rows)", written, len(pd.read_parquet(written)))
