@@ -1,6 +1,8 @@
 """Phase 4: paired bootstrap confidence interval for test R^2 A - B (R11, ADR-005/006).
 
-Public API under test (kc_housing.evaluate), proposed; config values await the human:
+Public API under test (kc_housing.evaluate); config values approved by the human
+(config.BOOTSTRAP_N_RESAMPLES 10000, config.BOOTSTRAP_CONFIDENCE 0.95, seed
+config.RANDOM_STATE; ADR-006):
 - ``paired_bootstrap_r2_diff(y_true, pred_a, pred_b, n_resamples, confidence, seed)
   -> {"low": float, "high": float, "n_resamples": int, "confidence": float}``.
   Each of ``n_resamples`` draws resamples the test row positions with replacement
@@ -18,6 +20,8 @@ AttributeError instead of breaking collection of the whole suite.
 
 import math
 
+import numpy as np
+import pytest
 from sklearn.metrics import r2_score
 
 from kc_housing import config, evaluate
@@ -67,3 +71,33 @@ def test_bootstrap_ci_schema(bootstrap_predictions):
     assert ci["n_resamples"] == N_RESAMPLES and isinstance(ci["n_resamples"], int)
     assert ci["confidence"] == CONFIDENCE
     assert isinstance(ci["confidence"], float)
+
+
+def test_bootstrap_chunks_match_r2_score_loop(bootstrap_predictions):
+    """Characterization: the chunked, vectorised bootstrap equals a plain r2_score loop.
+
+    Pins (1) the chunk loop, including a partial last chunk: chunk_size=7 and
+    n_resamples=30 give chunks of 7, 7, 7, 7, 2 drawn from one generator in that
+    order, and (2) the algebraic shortcut (SS_tot from centred sums, the SSE_B - SSE_A
+    over SS_tot difference) equals sklearn's r2_score(A) - r2_score(B) on every draw.
+    The reference below draws the same chunk shapes from the same seeded generator.
+    """
+    y_full, a_full, b_full = bootstrap_predictions
+    y, a, b = y_full[:20], a_full[:20], b_full[:20]
+    n, n_resamples, chunk_size, seed = y.size, 30, 7, config.RANDOM_STATE
+
+    rng = np.random.default_rng(seed)
+    expected_diffs = []
+    for size in (7, 7, 7, 7, 2):
+        idx = rng.integers(0, n, size=(size, n), dtype=np.int32)
+        expected_diffs += [r2_score(y[i], a[i]) - r2_score(y[i], b[i]) for i in idx]
+    assert len(expected_diffs) == n_resamples
+    low, high = np.quantile(
+        expected_diffs, [(1 - CONFIDENCE) / 2, (1 + CONFIDENCE) / 2]
+    )
+
+    ci = evaluate.paired_bootstrap_r2_diff(
+        y, a, b, n_resamples, CONFIDENCE, seed, chunk_size=chunk_size
+    )
+    assert ci["low"] == pytest.approx(low, abs=1e-12)
+    assert ci["high"] == pytest.approx(high, abs=1e-12)
