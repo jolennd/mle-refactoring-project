@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pytest
 
+from kc_housing import config
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 README_PATH = REPO_ROOT / "README.md"
 RESULTS_DIR = REPO_ROOT / "reports" / "results"
@@ -132,3 +134,88 @@ def test_readme_stretch_phases_planned(heading_pattern, run_command):
     assert match is None, (
         f"README documents run command {match.group(0)!r} for unbuilt stretch work"
     )
+
+
+def test_readme_intro_names_both_notebooks():
+    """Section 1: the intro (after the '#' title, before the first '##') is
+    non-empty and names both notebooks and ADR-001."""
+    lines = _readme_text().splitlines()
+    title_idx = next(
+        (i for i, line in enumerate(lines) if re.match(r"^#\s+\S", line)), None
+    )
+    assert title_idx is not None, "README has no '#' title"
+    end = next(
+        (i for i in range(title_idx + 1, len(lines)) if lines[i].startswith("## ")),
+        len(lines),
+    )
+    intro = "\n".join(lines[title_idx + 1 : end])
+    assert intro.strip(), "README intro (before the first '##' heading) is empty"
+    notebooks = ("King-County.ipynb", "notebooks/king_county_refactored.ipynb")
+    for needle in (*notebooks, "ADR-001"):
+        assert needle in intro, f"README intro does not mention {needle}"
+
+
+def test_readme_how_to_run_lists_core_commands():
+    """Section 2: a 'How to run' section gives uv sync, the Phase 1-3 make
+    targets and make test."""
+    sections = _matching_sections(r"how\s+to\s+run")
+    assert sections, "README has no 'How to run' heading"
+    body = "\n".join(b for _, b in sections)
+    assert re.search(r"\buv\s+sync\b", body), "How to run lacks `uv sync`"
+    combined = re.search(r"\bmake\s+data\s+features\s+pipeline\b", body)
+    if not combined:
+        for target in ("data", "features", "pipeline"):
+            assert re.search(rf"\bmake\s+{target}\b", body), (
+                f"How to run lacks `make {target}` (or `make data features pipeline`)"
+            )
+    assert re.search(r"\bmake\s+test(?![-\w])", body), (
+        "How to run lacks `make test` (`make test-fast` alone does not count)"
+    )
+
+
+def test_readme_project_layout_has_tree():
+    """Section 3: a 'Project layout' section whose fenced tree names src/kc_housing/."""
+    sections = _matching_sections(r"project\s+layout")
+    assert sections, "README has no 'Project layout' heading"
+    body = "\n".join(b for _, b in sections)
+    fences = re.findall(
+        r"^[ \t]*(```|~~~)[^\n]*\n(.*?)^[ \t]*\1", body, re.MULTILINE | re.DOTALL
+    )
+    assert fences, "Project layout section has no fenced code block"
+    assert any("src/kc_housing/" in block for _, block in fences), (
+        "Project layout tree (fenced block) does not mention src/kc_housing/"
+    )
+
+
+def test_readme_variant_b_and_difference_match_metrics():
+    """Results shows variant B R^2 (4 dp), A - B and its CI (5 dp) from
+    metrics.json, and says 'no significant difference' only because the CI
+    includes 0."""
+    metrics = json.loads((RESULTS_DIR / "metrics.json").read_text(encoding="utf-8"))
+    results = _matching_sections(r"\bresults\b")
+    assert results, "README has no Results section heading"
+    body = "\n".join(b for _, b in results)
+    expected = [
+        ("variant_b.test_r2", f"{metrics['variant_b']['test_r2']:.4f}"),
+        ("r2_a_minus_b", f"{metrics['r2_a_minus_b']:.5f}"),
+        ("r2_a_minus_b_ci.low", f"{metrics['r2_a_minus_b_ci']['low']:.5f}"),
+        ("r2_a_minus_b_ci.high", f"{metrics['r2_a_minus_b_ci']['high']:.5f}"),
+    ]
+    for label, text in expected:
+        assert text in body, f"Results section lacks metrics.json {label} = {text}"
+    low = metrics["r2_a_minus_b_ci"]["low"]
+    high = metrics["r2_a_minus_b_ci"]["high"]
+    assert low <= 0 <= high, (
+        f"metrics.json CI of A - B [{low}, {high}] excludes 0: the README wording "
+        "'no significant difference' must change, and so must this test"
+    )
+    assert "no significant difference" in body.casefold(), (
+        "Results section does not say 'no significant difference' "
+        "although the CI includes 0"
+    )
+
+
+def test_readme_states_feature_count():
+    """The README states the feature count from config.FEATURES."""
+    phrase = f"{len(config.FEATURES)} features"
+    assert phrase in _readme_text(), f"README does not state {phrase!r}"
