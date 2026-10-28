@@ -19,10 +19,10 @@ make test                    # full suite, run before a gate
 To re-run the refactored notebook top to bottom:
 
 ```bash
-uv run jupyter nbconvert --to notebook --execute notebooks/king_county_refactored.ipynb --output-dir /tmp
+uv run --with nbconvert jupyter nbconvert --to notebook --execute notebooks/king_county_refactored.ipynb --output-dir /tmp
 ```
 
-Writing the executed copy to `/tmp` keeps the committed notebook unchanged.
+`--with` adds nbconvert for this run only (it is not a project dependency). Writing the executed copy to `/tmp` keeps the committed notebook unchanged.
 
 ## Project layout
 
@@ -36,6 +36,7 @@ src/kc_housing/
 tests/                               unit, integration, data_gates, model
 docs/decisions/                      ADR-001 to ADR-009
 reports/results/                     baseline_lock.json, metrics.json, cv_folds.json
+                                     baseline_lock_cell.py (lock provenance, ADR-006)
 PROJECT_WORKFLOW.md                  phases, gates, status
 ```
 
@@ -43,7 +44,7 @@ PROJECT_WORKFLOW.md                  phases, gates, status
 
 ### Pipeline parity (Phases 1-3)
 
-The pipeline reproduces the notebook's features on all 21,596 rows within 1e-9 (`config.PARITY_RTOL`), checked by `tests/data_gates/test_parity.py`. The row count is asserted as `EXPECTED_SALES` in `tests/data_gates/test_features_real.py`.
+The pipeline reproduces the notebook's features on all 21,596 rows within 1e-9 (`config.PARITY_RTOL`, `config.PARITY_ATOL`), checked by `tests/data_gates/test_parity.py`. The row count is asserted as `EXPECTED_SALES` in `tests/data_gates/test_features_real.py`.
 
 Rows where `bedrooms == config.IMPLAUSIBLE_BEDROOMS` are dropped by rule (ADR-003), instead of the notebook's hard-coded index. This is tested in `tests/unit/test_cleaning.py`.
 
@@ -59,7 +60,7 @@ Split `train_test_split(test_size=0.3, random_state=42)`, ElasticNet with a 5-fo
 | A - B | -0.00042 | `reports/results/metrics.json` (`r2_a_minus_b`) |
 | 95% paired bootstrap CI of A - B | [-0.00119, 0.00021] | `reports/results/metrics.json` (`r2_a_minus_b_ci`) |
 
-Variant A matches the lock (ADR-006). The CI of A - B includes 0, so there is no significant difference between the two variants. The interval covers test-set sampling only (ADR-006).
+Variant A matches the lock (ADR-006) within `config.R2_PARITY_ATOL`, checked by `tests/data_gates/test_r2_parity.py`. The CI of A - B includes 0, so there is no significant difference between the two variants. The interval covers test-set sampling only (ADR-006).
 
 The notebook's conclusion text says "roughly 83%". The locked reproduced value above replaces it (ADR-006).
 
@@ -90,7 +91,7 @@ These limitations are documented in the ADRs and were not changed, to keep parit
 - Widen the grid. The best parameters (alpha 0.01, l1_ratio 0.2, in `baseline_lock.json` and `metrics.json`) sit at the corner of the grid, so a better value may lie outside it. This needs its own ADR.
 - Fit the `water_distance` reference on training rows only in the main path (ADR-005). Variant B does this, but the notebook's full-data fit is kept as the parity variant. Also measure variability across other splits and seeds, which the bootstrap does not cover (ADR-006).
 - Remove other notebook quirks listed in ADR-002 (numeric `zipcode`, hard-coded center, mismatched `cos` latitude), each with its own ADR and a new reference value.
-- Finish Phases 5 and 6, the API and Docker (see below). A prediction endpoint is out of scope in ADR-008 because the model needs 19 features and the API stores 5.
+- Finish Phases 5 and 6, the API and Docker (see below). A prediction endpoint is out of scope in ADR-008 because the model needs 19 features (`config.FEATURES`) and the API stores 5 (`config.API_FEATURES`).
 
 ## Stretch phases
 
