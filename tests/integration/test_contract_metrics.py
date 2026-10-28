@@ -22,10 +22,14 @@ metrics.json schema (this test defines it; extra keys are allowed):
     variant_b      same four keys as variant_a
     r2_a_minus_b   float, variant_a.test_r2 - variant_b.test_r2
     r2_a_minus_b_ci {"low": float, "high": float, "n_resamples": int,
-                    "confidence": float}: evaluate.paired_bootstrap_r2_diff on the
-                    test rows with config.BOOTSTRAP_N_RESAMPLES,
-                    config.BOOTSTRAP_CONFIDENCE and seed config.RANDOM_STATE;
-                    low <= high (r2_a_minus_b inside it is not guaranteed)
+                    "confidence": float, "chunk_size": int}:
+                    evaluate.paired_bootstrap_r2_diff on the test rows with
+                    config.BOOTSTRAP_N_RESAMPLES, config.BOOTSTRAP_CONFIDENCE and
+                    seed config.RANDOM_STATE; low <= high (r2_a_minus_b inside it
+                    is not guaranteed). The resamples are drawn in chunks from one
+                    seeded generator, so the CI depends on the seed and the chunk
+                    size; chunk_size records evaluate.BOOTSTRAP_CHUNK_SIZE so the
+                    CI is reproducible from the file.
 All numbers except best_params values are finite floats.
 
 best_params (both variants) has exactly the keys of config.PARAM_GRID, and each value
@@ -84,8 +88,8 @@ def test_metrics_json_contract(evaluated):
     """run() writes metrics.json to the given path (defaults from config) with both
     variants' test_r2, test_rmse, delta_vs_lock and best_params (PARAM_GRID keys, grid
     values), the lock value, A - B and its paired bootstrap CI (config resamples and
-    confidence, low <= high), all finite floats, and the deltas are the stated
-    differences."""
+    confidence, low <= high, chunk_size equal to evaluate.BOOTSTRAP_CHUNK_SIZE), all
+    finite floats, and the deltas are the stated differences."""
     defaults = inspect.signature(run).parameters
     assert defaults["features_path"].default == config.FEATURES_PATH
     assert defaults["clean_path"].default == config.CLEAN_PATH
@@ -118,12 +122,15 @@ def test_metrics_json_contract(evaluated):
     )
 
     ci = metrics["r2_a_minus_b_ci"]
-    assert {"low", "high", "n_resamples", "confidence"} <= set(ci)
+    assert {"low", "high", "n_resamples", "confidence", "chunk_size"} <= set(ci)
     for key in ("low", "high", "confidence"):
         assert isinstance(ci[key], float) and math.isfinite(ci[key]), key
     assert ci["low"] <= ci["high"]
     assert ci["n_resamples"] == config.BOOTSTRAP_N_RESAMPLES
     assert ci["confidence"] == config.BOOTSTRAP_CONFIDENCE
+    # Looked up at call time via the module, like paired_bootstrap_r2_diff.
+    assert isinstance(ci["chunk_size"], int) and not isinstance(ci["chunk_size"], bool)
+    assert ci["chunk_size"] == evaluate.BOOTSTRAP_CHUNK_SIZE
 
 
 @pytest.mark.integration
@@ -138,7 +145,8 @@ def test_metrics_values_match_rescored_variants(
     The CI is paired on the test rows, so A's and B's y_test must be the same labels
     in the same order with the same values; r2_a_minus_b_ci then equals
     paired_bootstrap_r2_diff of the rescored A and B test predictions with the config
-    resamples, confidence and seed config.RANDOM_STATE. Both runs are deterministic
+    resamples, confidence and seed config.RANDOM_STATE, and records the module's
+    chunk size evaluate.BOOTSTRAP_CHUNK_SIZE. Both runs are deterministic
     (the rescored test R^2 values match bit for bit), so low and high must match
     exactly."""
     metrics = json.loads(evaluated["metrics_path"].read_text())
@@ -189,3 +197,4 @@ def test_metrics_values_match_rescored_variants(
     assert ci["high"] == expected_ci["high"]
     assert ci["n_resamples"] == expected_ci["n_resamples"]
     assert ci["confidence"] == expected_ci["confidence"]
+    assert ci["chunk_size"] == evaluate.BOOTSTRAP_CHUNK_SIZE
