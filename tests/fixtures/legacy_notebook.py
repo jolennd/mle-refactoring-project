@@ -19,13 +19,22 @@ Display-only cells (head, info, describe, value_counts, plots, missing-value tab
 are left out; they do not change kc_data. Modeling cells (81 onward, except the id
 drop of cell 101) are out of scope for Phase 3.
 
-Only numpy and pandas are imported; nothing from kc_housing.
+Phase 4 adds cell 117 (param_grid, elastic_pipeline, elastic_cv) as
+`notebook_elastic_cv()`, unfitted; the only change is that it returns the objects
+instead of calling `fit`.
+
+Only numpy, pandas and sklearn are imported; nothing from kc_housing.
 """
 
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from sklearn.compose import TransformedTargetRegressor
+from sklearn.linear_model import ElasticNet
+from sklearn.model_selection import GridSearchCV
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
 
 def notebook_features(raw_path: str | Path) -> pd.DataFrame:
@@ -159,3 +168,45 @@ def notebook_features(raw_path: str | Path) -> pd.DataFrame:
 
     # Oracle output: id and price next to the model features, same index.
     return pd.concat([kc_data[["id", "price"]], X_poly], axis=1)
+
+
+def notebook_elastic_cv() -> GridSearchCV:
+    """Return the notebook's unfitted GridSearchCV over its ElasticNet pipeline.
+
+    Cell 117 verbatim up to (not including) `elastic_cv.fit(X_train_poly, y_train)`.
+    """
+    # --- cell 117 ---
+    # Specify the hyperparameters to tune.
+    # `alpha` controls the amount of regularization.
+    param_grid = {
+        "model__regressor__alpha": [0.01, 0.1, 1],
+        "model__regressor__l1_ratio": [0.2, 0.5, 0.8],
+    }
+
+    # Keep preprocessing with the estimator for validation and inference.
+    elastic_pipeline = Pipeline(
+        [
+            ("polynomial", PolynomialFeatures(2, include_bias=False)),
+            ("scaler", StandardScaler()),
+            (
+                "model",
+                TransformedTargetRegressor(
+                    regressor=ElasticNet(max_iter=5000, tol=1e-4, precompute=True),
+                    transformer=StandardScaler(),
+                ),
+            ),
+        ]
+    )
+
+    # Pass the model to a parameter grid with 5-fold cross-validation.
+    elastic_cv = GridSearchCV(
+        elastic_pipeline,
+        param_grid,
+        cv=5,
+        scoring="r2",
+        verbose=2,
+        n_jobs=1,
+        error_score="raise",
+    )
+
+    return elastic_cv
