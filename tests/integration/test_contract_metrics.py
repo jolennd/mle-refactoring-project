@@ -17,10 +17,17 @@ Public API under test (kc_housing.evaluate):
 metrics.json schema (this test defines it; extra keys are allowed):
     lock_test_r2   float, test_r2 read from the lock at ``lock_path``
     variant_a      {"test_r2": float, "test_rmse": float (USD, >= 0),
-                    "delta_vs_lock": test_r2 - lock_test_r2}
-    variant_b      same three keys as variant_a
+                    "delta_vs_lock": test_r2 - lock_test_r2,
+                    "best_params": {grid key: chosen value}}
+    variant_b      same four keys as variant_a
     r2_a_minus_b   float, variant_a.test_r2 - variant_b.test_r2
-All numbers are finite floats.
+All numbers except best_params values are finite floats.
+
+best_params (both variants) has exactly the keys of config.PARAM_GRID, and each value
+is one of that key's grid values, so A - B can be told apart into the leak and a
+different grid choice. Variant A's saved model is the fitted best_estimator_ Pipeline
+(no best_params_), so A's best_params are the PARAM_GRID keys read from the saved
+model's ``get_params()``; B's are ``train_variant_b(...).best_params_``.
 
 Tests write to tmp_path only, never to the config paths.
 """
@@ -69,8 +76,9 @@ def evaluated(model_clean_houses, model_features, tmp_path):
 @pytest.mark.integration
 def test_metrics_json_contract(evaluated):
     """run() writes metrics.json to the given path (defaults from config) with both
-    variants' test_r2, test_rmse and delta_vs_lock, the lock value and A - B, all
-    finite floats, and the deltas are the stated differences."""
+    variants' test_r2, test_rmse, delta_vs_lock and best_params (PARAM_GRID keys, grid
+    values), the lock value and A - B, all finite floats, and the deltas are the
+    stated differences."""
     defaults = inspect.signature(run).parameters
     assert defaults["features_path"].default == config.FEATURES_PATH
     assert defaults["clean_path"].default == config.CLEAN_PATH
@@ -90,6 +98,11 @@ def test_metrics_json_contract(evaluated):
         assert metrics[variant]["delta_vs_lock"] == pytest.approx(
             metrics[variant]["test_r2"] - LOCK_TEST_R2, abs=1e-12
         )
+        best_params = metrics[variant]["best_params"]
+        assert isinstance(best_params, dict), variant
+        assert set(best_params) == set(config.PARAM_GRID), variant
+        for key, grid_values in config.PARAM_GRID.items():
+            assert best_params[key] in grid_values, (variant, key)
     for value in numbers:
         assert isinstance(value, float) and math.isfinite(value)
     assert metrics["lock_test_r2"] == LOCK_TEST_R2
@@ -104,7 +117,8 @@ def test_metrics_values_match_rescored_variants(
 ):
     """score() is sklearn's R^2 and RMSE; metrics.json variant A equals score() of the
     saved model on split_data's test rows, and variant B equals score() of
-    train_variant_b on the same rows from the clean table."""
+    train_variant_b on the same rows from the clean table; best_params are the saved
+    model's grid-key params (A) and train_variant_b's best_params_ (B)."""
     metrics = json.loads(evaluated["metrics_path"].read_text())
 
     _, X_test, _, y_test = split_data(model_features)
@@ -121,7 +135,8 @@ def test_metrics_values_match_rescored_variants(
         model_clean_houses, model_features
     )
     np.testing.assert_array_equal(yb_test.to_numpy(), y_test.to_numpy())
-    scored_b = score(train_variant_b(Xb_train, yb_train), Xb_test, yb_test)
+    search_b = train_variant_b(Xb_train, yb_train)
+    scored_b = score(search_b, Xb_test, yb_test)
 
     for variant, scored in (("variant_a", scored_a), ("variant_b", scored_b)):
         for key in ("test_r2", "test_rmse"):
@@ -129,3 +144,9 @@ def test_metrics_values_match_rescored_variants(
                 variant,
                 key,
             )
+
+    params_a = model_a.get_params()
+    assert metrics["variant_a"]["best_params"] == {
+        key: params_a[key] for key in config.PARAM_GRID
+    }
+    assert metrics["variant_b"]["best_params"] == search_b.best_params_
