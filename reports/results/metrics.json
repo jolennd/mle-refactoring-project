@@ -18,5 +18,12 @@
       "model__regressor__l1_ratio": 0.2
     }
   },
-  "r2_a_minus_b": -0.00041955457524700535
+  "r2_a_minus_b": -0.00041955457524700535,
+  "r2_a_minus_b_ci": {
+    "low": -0.0011917237655027502,
+    "high": 0.00021146158118011402,
+    "n_resamples": 10000,
+    "confidence": 0.95,
+    "chunk_size": 1000
+  }
 }
