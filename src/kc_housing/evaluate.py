@@ -12,6 +12,7 @@ import json
 import logging
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import skops.io as sio
 from sklearn.metrics import r2_score, root_mean_squared_error
@@ -27,6 +28,10 @@ logger = logging.getLogger(__name__)
 
 # Modules whose types the saved model may contain; anything else is refused.
 TRUSTED_MODULES = ("sklearn.", "numpy.", "kc_housing.")
+
+# Bootstrap resamples drawn per chunk, to bound memory (an implementation detail, not
+# a threshold). Results are deterministic for a fixed seed AND chunk size.
+BOOTSTRAP_CHUNK_SIZE = 1000
 
 
 def split_variant_b(
@@ -94,6 +99,52 @@ def load_model(path: str | Path = config.MODEL_PATH):
     return sio.load(path, trusted=untrusted)
 
 
+def paired_bootstrap_r2_diff(
+    y_true,
+    pred_a,
+    pred_b,
+    n_resamples: int,
+    confidence: float,
+    seed: int,
+    *,
+    chunk_size: int = BOOTSTRAP_CHUNK_SIZE,
+) -> dict:
+    """Paired percentile bootstrap interval of test R^2 A - B (ADR-006).
+
+    Each draw resamples the row positions with replacement once and scores A and B
+    on that same draw. Draws come from one generator, chunk_size at a time.
+    """
+    y = np.asarray(y_true, dtype=float)
+    n = y.size
+    # Per-row vectors, computed once; y is centred to avoid cancellation in SS_tot.
+    sq_err_a = (y - np.asarray(pred_a, dtype=float)) ** 2
+    sq_err_b = (y - np.asarray(pred_b, dtype=float)) ** 2
+    y_c = y - y.mean()
+    y_c_sq = y_c**2
+
+    rng = np.random.default_rng(seed)
+    diffs = np.empty(n_resamples)
+    for start in range(0, n_resamples, chunk_size):
+        size = min(chunk_size, n_resamples - start)
+        # Drawn as int32; np.take would convert it to intp on every call, so convert
+        # once here (the int32 copy is freed) and reuse it for the four gathers.
+        idx = rng.integers(0, n, size=(size, n), dtype=np.int32).astype(np.intp)
+        sum_y_c = np.take(y_c, idx).sum(axis=1)
+        ss_tot = np.take(y_c_sq, idx).sum(axis=1) - sum_y_c**2 / n
+        sse_a = np.take(sq_err_a, idx).sum(axis=1)
+        sse_b = np.take(sq_err_b, idx).sum(axis=1)
+        diffs[start : start + size] = (1 - sse_a / ss_tot) - (1 - sse_b / ss_tot)
+        del idx  # free before the next draw, so two index chunks never coexist
+
+    low, high = np.quantile(diffs, [(1 - confidence) / 2, (1 + confidence) / 2])
+    return {
+        "low": float(low),
+        "high": float(high),
+        "n_resamples": int(n_resamples),
+        "confidence": float(confidence),
+    }
+
+
 def _variant(scores: dict, lock_test_r2: float, best_params: dict) -> dict:
     """Scores plus the delta to the lock and the chosen grid point."""
     return {
@@ -118,6 +169,7 @@ def run(
     _, X_test, _, y_test = split_data(features)
     model_a = load_model(model_path)
     params_a = model_a.get_params()
+    pred_a = model_a.predict(X_test)
     variant_a = _variant(
         score(model_a, X_test, y_test),
         lock_test_r2,
@@ -129,6 +181,7 @@ def run(
         pd.read_parquet(clean_path), features
     )
     search_b = train_variant_b(Xb_train, yb_train)
+    pred_b = search_b.predict(Xb_test)
     variant_b = _variant(
         score(search_b, Xb_test, yb_test), lock_test_r2, search_b.best_params_
     )
@@ -139,6 +192,20 @@ def run(
         "variant_b": variant_b,
         "r2_a_minus_b": variant_a["test_r2"] - variant_b["test_r2"],
     }
+
+    # The CI is paired: A and B must be scored on the same rows in the same order.
+    if not (y_test.index.equals(yb_test.index) and y_test.equals(yb_test)):
+        raise ValueError("Variant A and B test labels differ; the CI needs paired rows")
+    ci = paired_bootstrap_r2_diff(
+        y_test.to_numpy(),
+        pred_a,
+        pred_b,
+        config.BOOTSTRAP_N_RESAMPLES,
+        config.BOOTSTRAP_CONFIDENCE,
+        config.RANDOM_STATE,
+    )
+    # The CI depends on the seed and the chunk size, so record the latter too.
+    metrics["r2_a_minus_b_ci"] = {**ci, "chunk_size": BOOTSTRAP_CHUNK_SIZE}
     for name in ("variant_a", "variant_b"):
         logger.info(
             "%s: test R^2 %.6f, RMSE %.0f USD, delta vs lock %+.6f, %s",
@@ -148,7 +215,14 @@ def run(
             metrics[name]["delta_vs_lock"],
             metrics[name]["best_params"],
         )
-    logger.info("R^2 A - B: %+.6f", metrics["r2_a_minus_b"])
+    logger.info(
+        "R^2 A - B: %+.6f, %.0f%% paired bootstrap CI [%+.6f, %+.6f] (%d resamples)",
+        metrics["r2_a_minus_b"],
+        100 * ci["confidence"],
+        ci["low"],
+        ci["high"],
+        ci["n_resamples"],
+    )
 
     path = Path(metrics_path)
     path.parent.mkdir(parents=True, exist_ok=True)
