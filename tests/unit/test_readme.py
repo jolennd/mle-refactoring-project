@@ -228,3 +228,29 @@ def test_readme_states_feature_count():
     """The README states the feature count from config.FEATURES."""
     phrase = f"{len(config.FEATURES)} features"
     assert phrase in _readme_text(), f"README does not state {phrase!r}"
+
+
+_NBCONVERT = re.compile(r"\bjupyter\s+nbconvert\b")
+_NBCONVERT_WITH_DEP = re.compile(
+    r"\buv\s+run\s+--with\s+nbconvert\s+jupyter\s+nbconvert\b"
+)
+
+
+def test_readme_nbconvert_command_runs_without_extra_install():
+    """Every README line (code blocks included) that runs `jupyter nbconvert` does
+    so via `uv run --with nbconvert`, so it works after `uv sync` with no extra
+    install (human decision: no pyproject dependency); at least one such line
+    remains so the README still documents re-running the notebook."""
+    lines = [
+        (number, line)
+        for number, line in enumerate(_readme_text().splitlines(), start=1)
+        if _NBCONVERT.search(line)
+    ]
+    assert lines, (
+        "README no longer documents re-running the notebook (`jupyter nbconvert`)"
+    )
+    for number, line in lines:
+        assert _NBCONVERT_WITH_DEP.search(line), (
+            f"README.md line {number} runs `jupyter nbconvert` without "
+            f"`uv run --with nbconvert`: {line.strip()!r}"
+        )
