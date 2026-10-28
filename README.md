@@ -19,8 +19,10 @@ make test                    # full suite, run before a gate
 To re-run the refactored notebook top to bottom:
 
 ```bash
-uv run jupyter nbconvert --to notebook --execute notebooks/king_county_refactored.ipynb --output-dir <some-folder>
+uv run jupyter nbconvert --to notebook --execute notebooks/king_county_refactored.ipynb --output-dir /tmp
 ```
+
+Writing the executed copy to `/tmp` keeps the committed notebook unchanged.
 
 ## Project layout
 
@@ -43,7 +45,7 @@ PROJECT_WORKFLOW.md                  phases, gates, status
 
 The pipeline reproduces the notebook's features on all 21,596 rows within 1e-9 (`config.PARITY_RTOL`), checked by `tests/data_gates/test_parity.py`. The row count is asserted as `EXPECTED_SALES` in `tests/data_gates/test_features_real.py`.
 
-One row is dropped by rule (ADR-003): rows where `bedrooms == config.IMPLAUSIBLE_BEDROOMS` are removed, instead of the notebook's hard-coded index. This is tested in `tests/unit/test_cleaning.py`.
+Rows where `bedrooms == config.IMPLAUSIBLE_BEDROOMS` are dropped by rule (ADR-003), instead of the notebook's hard-coded index. This is tested in `tests/unit/test_cleaning.py`.
 
 ### Modeling (Phase 4, stretch)
 
@@ -84,7 +86,7 @@ The notebook's conclusion text says "roughly 83%". The locked reproduced value a
 
 These limitations are documented in the ADRs and were not changed, to keep parity.
 
-- Split by `id` instead of by row (ADR-006). Repeat sales of one house can land in both train and test. From the Phase 4 gate: 71 ids appear on both sides of the split. A group split would remove this optimism.
+- Split by `id` instead of by row (ADR-006). Repeat sales of one house can land in both train and test. A group split by `id` would remove this optimism.
 - Widen the grid. The best parameters (alpha 0.01, l1_ratio 0.2, in `baseline_lock.json` and `metrics.json`) sit at the corner of the grid, so a better value may lie outside it. This needs its own ADR.
 - Fit the `water_distance` reference on training rows only in the main path (ADR-005). Variant B does this, but the notebook's full-data fit is kept as the parity variant. Also measure variability across other splits and seeds, which the bootstrap does not cover (ADR-006).
 - Remove other notebook quirks listed in ADR-002 (numeric `zipcode`, hard-coded center, mismatched `cos` latitude), each with its own ADR and a new reference value.
