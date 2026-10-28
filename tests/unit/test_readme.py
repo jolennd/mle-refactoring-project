@@ -121,11 +121,14 @@ def test_readme_cites_parity_gates(citation):
     ids=["phase5-api", "phase6-docker"],
 )
 def test_readme_stretch_phases_planned(heading_pattern, run_command):
-    """API and Docker sections exist, say 'planned', and give no run command yet."""
+    """API and Docker sections exist and say 'planned'; the whole README (any
+    section, including code blocks) gives no run command for them yet (ADR-009
+    amendment: Phases 5 and 6 are not built)."""
     sections = _matching_sections(heading_pattern)
     assert sections, f"README has no heading matching {heading_pattern!r}"
     for title, body in sections:
         assert "planned" in body.casefold(), f"section {title!r} does not say 'planned'"
-        assert not re.search(run_command, body), (
-            f"section {title!r} documents a run command for unbuilt stretch work"
-        )
+    match = re.search(run_command, _readme_text())
+    assert match is None, (
+        f"README documents run command {match.group(0)!r} for unbuilt stretch work"
+    )
