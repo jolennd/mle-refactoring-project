@@ -157,7 +157,8 @@ def test_readme_intro_names_both_notebooks():
 
 def test_readme_how_to_run_lists_core_commands():
     """Section 2: a 'How to run' section gives uv sync, the Phase 1-3 make
-    targets and make test."""
+    targets, the Phase 4 targets that produce the README's model numbers
+    (make train, make evaluate) and make test."""
     sections = _matching_sections(r"how\s+to\s+run")
     assert sections, "README has no 'How to run' heading"
     body = "\n".join(b for _, b in sections)
@@ -167,6 +168,14 @@ def test_readme_how_to_run_lists_core_commands():
         for target in ("data", "features", "pipeline"):
             assert re.search(rf"\bmake\s+{target}\b", body), (
                 f"How to run lacks `make {target}` (or `make data features pipeline`)"
+            )
+    # (?![-\w]) so longer target names (make trainx, make evaluate-all) do not count.
+    model_combined = re.search(r"\bmake\s+train\s+evaluate(?![-\w])", body)
+    if not model_combined:
+        for target in ("train", "evaluate"):
+            assert re.search(rf"\bmake\s+{target}(?![-\w])", body), (
+                f"How to run lacks `make {target}` (or `make train evaluate`); "
+                "the README's model numbers come from these targets"
             )
     assert re.search(r"\bmake\s+test(?![-\w])", body), (
         "How to run lacks `make test` (`make test-fast` alone does not count)"
