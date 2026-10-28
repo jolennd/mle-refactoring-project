@@ -26,20 +26,25 @@ def split_data(
     )
 
 
+def cv_splitter() -> KFold:
+    """Return the GridSearchCV folds: KFold(config.CV_FOLDS), no shuffle (cell 117).
+
+    Notebook `cv=5` on a regressor resolves to this, so the folds are fixed.
+    """
+    return KFold(n_splits=config.CV_FOLDS)
+
+
 def save_cv_folds(
     X_train: pd.DataFrame, path: str | Path = config.CV_FOLDS_PATH
 ) -> Path:
-    """Write the GridSearchCV folds over X_train index labels as JSON (cell 117).
-
-    `cv=5` on a regressor means KFold(5) without shuffling, so the folds are fixed.
-    """
+    """Write the cv_splitter() folds over X_train index labels as JSON (cell 117)."""
     # Positions from KFold, stored as index labels so they survive a reload.
     folds = [
         {
             "train": X_train.index[train].tolist(),
             "validation": X_train.index[val].tolist(),
         }
-        for train, val in KFold(n_splits=config.CV_FOLDS).split(X_train)
+        for train, val in cv_splitter().split(X_train)
     ]
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
