@@ -1,0 +1,29 @@
+{
+  "lock_test_r2": 0.8442693803832908,
+  "variant_a": {
+    "test_r2": 0.8442693803833045,
+    "test_rmse": 143636.47027646232,
+    "delta_vs_lock": 1.3655743202889425e-14,
+    "best_params": {
+      "model__regressor__alpha": 0.01,
+      "model__regressor__l1_ratio": 0.2
+    }
+  },
+  "variant_b": {
+    "test_r2": 0.8446889349585515,
+    "test_rmse": 143442.85394678102,
+    "delta_vs_lock": 0.0004195545752606611,
+    "best_params": {
+      "model__regressor__alpha": 0.01,
+      "model__regressor__l1_ratio": 0.2
+    }
+  },
+  "r2_a_minus_b": -0.00041955457524700535,
+  "r2_a_minus_b_ci": {
+    "low": -0.0011917237655028,
+    "high": 0.00021146158118010879,
+    "n_resamples": 10000,
+    "confidence": 0.95,
+    "chunk_size": 1000
+  }
+}

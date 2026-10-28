@@ -78,6 +78,9 @@ PARAM_GRID = {
 PRIMARY_METRIC = "r2"
 # Allowed gap between the refactored test R^2 and the notebook's own, locked value.
 R2_PARITY_ATOL = 0.001  # ADR-006
+# Paired percentile bootstrap of test R^2 A - B, seed RANDOM_STATE (ADR-006).
+BOOTSTRAP_N_RESAMPLES = 10000
+BOOTSTRAP_CONFIDENCE = 0.95
 
 # --- API (Phase 5, stretch) --------------------------------------------------------
 API_FEATURES = ["bedrooms", "bathrooms", "sqft_living", "grade", "zipcode"]  # ADR-008

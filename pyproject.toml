@@ -47,8 +47,13 @@ markers = [
 ]
 
 [tool.ruff]
-# Frozen reference notebook (ADR-001) and the course reference solution are not ours to lint.
-extend-exclude = ["King-County.ipynb", "bonus_solution"]
+# Frozen reference notebook (ADR-001), the course reference solution and the verbatim
+# baseline lock cell (ADR-006) are not ours to lint.
+extend-exclude = [
+    "King-County.ipynb",
+    "bonus_solution",
+    "reports/results/baseline_lock_cell.py",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B"]
