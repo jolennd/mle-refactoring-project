@@ -42,11 +42,12 @@ import json
 import math
 
 import numpy as np
+import pandas as pd
 import pytest
 import skops.io as sio
 from sklearn.metrics import mean_squared_error, r2_score
 
-from kc_housing import config, models
+from kc_housing import config, evaluate, models
 from kc_housing.evaluate import run, score, split_variant_b, train_variant_b
 from kc_housing.splits import split_data
 
@@ -132,7 +133,14 @@ def test_metrics_values_match_rescored_variants(
     """score() is sklearn's R^2 and RMSE; metrics.json variant A equals score() of the
     saved model on split_data's test rows, and variant B equals score() of
     train_variant_b on the same rows from the clean table; best_params are the saved
-    model's grid-key params (A) and train_variant_b's best_params_ (B)."""
+    model's grid-key params (A) and train_variant_b's best_params_ (B).
+
+    The CI is paired on the test rows, so A's and B's y_test must be the same labels
+    in the same order with the same values; r2_a_minus_b_ci then equals
+    paired_bootstrap_r2_diff of the rescored A and B test predictions with the config
+    resamples, confidence and seed config.RANDOM_STATE. Both runs are deterministic
+    (the rescored test R^2 values match bit for bit), so low and high must match
+    exactly."""
     metrics = json.loads(evaluated["metrics_path"].read_text())
 
     _, X_test, _, y_test = split_data(model_features)
@@ -149,7 +157,10 @@ def test_metrics_values_match_rescored_variants(
         model_clean_houses, model_features
     )
     np.testing.assert_array_equal(yb_test.to_numpy(), y_test.to_numpy())
+    pd.testing.assert_index_equal(yb_test.index, y_test.index)
+    pd.testing.assert_index_equal(Xb_test.index, X_test.index)
     search_b = train_variant_b(Xb_train, yb_train)
+    pred_b = search_b.predict(Xb_test)
     scored_b = score(search_b, Xb_test, yb_test)
 
     for variant, scored in (("variant_a", scored_a), ("variant_b", scored_b)):
@@ -164,3 +175,17 @@ def test_metrics_values_match_rescored_variants(
         key: params_a[key] for key in config.PARAM_GRID
     }
     assert metrics["variant_b"]["best_params"] == search_b.best_params_
+
+    expected_ci = evaluate.paired_bootstrap_r2_diff(
+        y_test.to_numpy(),
+        pred_a,
+        pred_b,
+        config.BOOTSTRAP_N_RESAMPLES,
+        config.BOOTSTRAP_CONFIDENCE,
+        config.RANDOM_STATE,
+    )
+    ci = metrics["r2_a_minus_b_ci"]
+    assert ci["low"] == expected_ci["low"]
+    assert ci["high"] == expected_ci["high"]
+    assert ci["n_resamples"] == expected_ci["n_resamples"]
+    assert ci["confidence"] == expected_ci["confidence"]

@@ -9,8 +9,8 @@ Public API under test (kc_housing.evaluate), proposed; config values await the h
   (paired). ``low`` and ``high`` are the percentile interval at ``confidence``
   (the (1 - confidence) / 2 and (1 + confidence) / 2 quantiles of the draws).
   ``n_resamples`` and ``confidence`` are echoed back.
-- run() uses config.BOOTSTRAP_N_RESAMPLES (proposed 1000), config.BOOTSTRAP_CONFIDENCE
-  (proposed 0.95) and seed config.RANDOM_STATE; see test_metrics_json_contract.
+- run() uses config.BOOTSTRAP_N_RESAMPLES (10000), config.BOOTSTRAP_CONFIDENCE
+  (0.95) and seed config.RANDOM_STATE; see test_metrics_json_contract.
 
 The function is looked up at call time, so a missing function fails each test with
 AttributeError instead of breaking collection of the whole suite.
