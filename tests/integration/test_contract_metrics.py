@@ -21,6 +21,11 @@ metrics.json schema (this test defines it; extra keys are allowed):
                     "best_params": {grid key: chosen value}}
     variant_b      same four keys as variant_a
     r2_a_minus_b   float, variant_a.test_r2 - variant_b.test_r2
+    r2_a_minus_b_ci {"low": float, "high": float, "n_resamples": int,
+                    "confidence": float}: evaluate.paired_bootstrap_r2_diff on the
+                    test rows with config.BOOTSTRAP_N_RESAMPLES,
+                    config.BOOTSTRAP_CONFIDENCE and seed config.RANDOM_STATE;
+                    low <= high (r2_a_minus_b inside it is not guaranteed)
 All numbers except best_params values are finite floats.
 
 best_params (both variants) has exactly the keys of config.PARAM_GRID, and each value
@@ -77,8 +82,9 @@ def evaluated(model_clean_houses, model_features, tmp_path):
 def test_metrics_json_contract(evaluated):
     """run() writes metrics.json to the given path (defaults from config) with both
     variants' test_r2, test_rmse, delta_vs_lock and best_params (PARAM_GRID keys, grid
-    values), the lock value and A - B, all finite floats, and the deltas are the
-    stated differences."""
+    values), the lock value, A - B and its paired bootstrap CI (config resamples and
+    confidence, low <= high), all finite floats, and the deltas are the stated
+    differences."""
     defaults = inspect.signature(run).parameters
     assert defaults["features_path"].default == config.FEATURES_PATH
     assert defaults["clean_path"].default == config.CLEAN_PATH
@@ -109,6 +115,14 @@ def test_metrics_json_contract(evaluated):
     assert metrics["r2_a_minus_b"] == pytest.approx(
         metrics["variant_a"]["test_r2"] - metrics["variant_b"]["test_r2"], abs=1e-12
     )
+
+    ci = metrics["r2_a_minus_b_ci"]
+    assert {"low", "high", "n_resamples", "confidence"} <= set(ci)
+    for key in ("low", "high", "confidence"):
+        assert isinstance(ci[key], float) and math.isfinite(ci[key]), key
+    assert ci["low"] <= ci["high"]
+    assert ci["n_resamples"] == config.BOOTSTRAP_N_RESAMPLES
+    assert ci["confidence"] == config.BOOTSTRAP_CONFIDENCE
 
 
 @pytest.mark.integration

@@ -140,3 +140,18 @@ def model_features(model_clean_houses) -> pd.DataFrame:
 
     features = build_feature_pipeline().fit_transform(model_clean_houses)
     return with_id_and_target(model_clean_houses, features)
+
+
+@pytest.fixture
+def bootstrap_predictions() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Synthetic (y_true, pred_a, pred_b) for the paired bootstrap, fixed seed.
+
+    200 rows; A's errors are clearly smaller than B's, so r2(A) - r2(B) > 0 and no
+    resample has a constant y_true.
+    """
+    rng = np.random.default_rng(21)
+    n = 200
+    y_true = rng.uniform(200_000, 1_500_000, n)
+    pred_a = y_true + rng.normal(0, 50_000, n)
+    pred_b = y_true + rng.normal(0, 150_000, n)
+    return y_true, pred_a, pred_b
