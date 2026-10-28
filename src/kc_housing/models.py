@@ -31,6 +31,7 @@ def build_model() -> Pipeline:
                 "model",
                 # The target is standardized too, then mapped back to USD.
                 TransformedTargetRegressor(
+                    # Fixed cell 117 solver constants, not tuned thresholds: kept here.
                     regressor=ElasticNet(max_iter=5000, tol=1e-4, precompute=True),
                     transformer=StandardScaler(),
                 ),
