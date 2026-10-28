@@ -20,9 +20,9 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
 
 from kc_housing import config
-from kc_housing.models import build_model
+from kc_housing.models import build_grid_search, build_model
 from kc_housing.pipeline import build_feature_pipeline
-from kc_housing.splits import cv_splitter, split_data
+from kc_housing.splits import split_data
 
 logger = logging.getLogger(__name__)
 
@@ -62,17 +62,13 @@ def split_variant_b(
 def build_variant_b_search() -> GridSearchCV:
     """Return the notebook grid search with the feature pipeline in front (ADR-005).
 
-    Step names after `features` are build_model()'s, so config.PARAM_GRID applies;
-    the feature pipeline is refitted on each CV training fold.
+    Grid, metric, refit and folds are shared with variant A via
+    models.build_grid_search. Step names after `features` are build_model()'s, so
+    config.PARAM_GRID applies; the feature pipeline is refitted on each CV training
+    fold.
     """
-    return GridSearchCV(
-        Pipeline([("features", build_feature_pipeline()), *build_model().steps]),
-        config.PARAM_GRID,
-        cv=cv_splitter(),
-        scoring=config.PRIMARY_METRIC,
-        refit=True,
-        n_jobs=1,
-        error_score="raise",
+    return build_grid_search(
+        Pipeline([("features", build_feature_pipeline()), *build_model().steps])
     )
 
 
@@ -133,7 +129,8 @@ def paired_bootstrap_r2_diff(
         ss_tot = np.take(y_c_sq, idx).sum(axis=1) - sum_y_c**2 / n
         sse_a = np.take(sq_err_a, idx).sum(axis=1)
         sse_b = np.take(sq_err_b, idx).sum(axis=1)
-        diffs[start : start + size] = (1 - sse_a / ss_tot) - (1 - sse_b / ss_tot)
+        # R^2_A - R^2_B: ss_tot is shared by A and B on each draw, so 1 - ... cancels.
+        diffs[start : start + size] = (sse_b - sse_a) / ss_tot
         del idx  # free before the next draw, so two index chunks never coexist
 
     low, high = np.quantile(diffs, [(1 - confidence) / 2, (1 + confidence) / 2])

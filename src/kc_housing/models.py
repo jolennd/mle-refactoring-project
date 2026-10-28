@@ -39,14 +39,15 @@ def build_model() -> Pipeline:
     )
 
 
-def build_grid_search() -> GridSearchCV:
-    """Return the unfitted grid search over build_model() (cell 117).
+def build_grid_search(estimator: Pipeline | None = None) -> GridSearchCV:
+    """Return the unfitted grid search over `estimator` or build_model() (cell 117).
 
     Same grid, metric and folds as the notebook; refit=True refits the best setting
-    on all training rows (cell 119).
+    on all training rows (cell 119). Variant B passes its own pipeline so A and B
+    share these settings.
     """
     return GridSearchCV(
-        build_model(),
+        build_model() if estimator is None else estimator,
         config.PARAM_GRID,
         cv=cv_splitter(),
         scoring=config.PRIMARY_METRIC,
