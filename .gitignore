@@ -199,3 +199,22 @@ __pycache__/
 # local SQLite files
 *.sqlite
 *.sqlite3
+
+
+# credentials (keys belong in .env only)
+secrets.json
+credentials.json
+*.pem
+*.key
+
+# model weights anywhere (the saved model lives in models/)
+*.bin
+*.pt
+*.pth
+*.onnx
+*.gguf
+*.safetensors
+*.ckpt
+*.pkl
+*.joblib
+*.skops
