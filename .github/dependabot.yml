@@ -1,0 +1,26 @@
+# Dependabot version updates: one grouped PR per ecosystem per month for routine bumps.
+# Security fixes are separate (Dependabot security updates) and arrive immediately.
+version: 2
+updates:
+  - package-ecosystem: "uv"
+    directories: ["/", "/bonus_solution"]
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    groups:
+      python-minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "docker"
+    directory: "/bonus_solution"
+    schedule:
+      interval: "monthly"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      actions:
+        patterns: ["*"]
