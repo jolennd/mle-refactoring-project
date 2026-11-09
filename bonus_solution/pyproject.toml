@@ -3,11 +3,11 @@ name = "bonus-solution"
 version = "0.1.0"
 requires-python = ">=3.13.17"
 dependencies = [
-    "fastapi>=0.141.1",
+    "fastapi>=0.162.0",
     "psycopg[binary]>=3.3.5",
-    "pydantic>=2.13.5",
+    "pydantic>=2.14.3",
     "python-dotenv>=1.2.3",
-    "sqlalchemy>=2.0.52",
+    "sqlalchemy>=2.1.8",
     "uvicorn>=0.52.4",
 ]
 
