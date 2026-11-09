@@ -1,5 +1,5 @@
 FROM ghcr.io/astral-sh/uv:0.13.5 AS uv
-FROM python:3.13.17-slim-bookworm
+FROM python:3.15.0-slim-bookworm
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
